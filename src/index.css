@@ -82,6 +82,23 @@ button:disabled {
   color: black;
 }
 
+.view-toggles {
+  display: flex;
+  gap: 5px;
+}
+
+.view-toggles button {
+  background-color: #222;
+  color: #888;
+  padding: 8px 12px;
+  font-size: 0.85rem;
+}
+
+.view-toggles button.active {
+  background-color: var(--card-bg);
+  color: var(--accent);
+  border: 1px solid var(--accent);
+}
 .weapon-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
@@ -150,4 +167,188 @@ button:disabled {
 
 .optimal-star:hover {
   transform: scale(1.2);
+}
+
+/* --- Master-Detail Layout (By Weapon View) --- */
+.master-detail-layout {
+  display: flex;
+  gap: 30px;
+  padding: 20px;
+  align-items: flex-start;
+}
+
+/* Left Sidebar Layout */
+.master-pane {
+  flex: 0 0 380px; /* Fixed width for the list */
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-height: 80vh;
+  overflow-y: auto;
+  padding-right: 15px;
+}
+
+/* Custom minimal scrollbar for the left pane */
+.master-pane::-webkit-scrollbar { width: 6px; }
+.master-pane::-webkit-scrollbar-thumb { background: #444; border-radius: 3px; }
+
+.master-section-title {
+  color: var(--accent);
+  font-size: 1.1rem;
+  font-family: monospace;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  margin: 0 0 10px 0;
+  border-bottom: 1px dashed #444;
+  padding-bottom: 5px;
+}
+
+/* Compact Clickable Rows */
+.compact-list {
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.compact-list-item {
+  padding: 10px 15px;
+  background-color: #222;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: all 0.2s ease;
+  font-size: 0.9rem;
+  border: 1px solid transparent;
+}
+
+.compact-list-item:hover {
+  background-color: #2a2a2a;
+  border-color: #444;
+}
+
+.compact-list-item.selected {
+  background-color: rgba(212, 175, 55, 0.1);
+  border-color: var(--accent);
+}
+
+.compact-list-item.selected .compact-dump {
+  color: var(--accent);
+  font-weight: bold;
+}
+
+.tiny-status {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.tiny-status.badge-C { color: #aaa; }
+.tiny-status.badge-U { color: #e25822; font-weight: bold; }
+
+/* Right Detail Pane */
+.detail-pane {
+  flex: 1; /* Takes up all remaining space */
+  position: sticky;
+  top: 20px; /* Stays fixed 20px from the top while the left side scrolls */
+  min-height: 350px;
+  background-color: #111;
+  border: 1px solid #333;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+}
+
+.detail-card-wrapper {
+  width: 100%;
+  max-width: 450px; /* Keeps the card from getting absurdly wide on big monitors */
+}
+
+/* Override the standard weapon card shadow when it's inside the detail pane to look cleaner */
+.detail-card-wrapper .weapon-card {
+  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+  transform: scale(1.02); /* Slight pop out effect */
+}
+
+.empty-detail-state {
+  text-align: center;
+  color: #666;
+  max-width: 300px;
+}
+
+.empty-detail-state h3 {
+  color: #888;
+  margin-bottom: 10px;
+}
+
+/* Remove the "pane" box entirely */
+.detail-pane {
+  flex: 1;
+  padding: 0 20px;
+  /* No more height/overflow constraints; let it grow with the content */
+}
+
+/* The Grid: This keeps them organized without forcing a "box" look */
+.multi-card-grid {
+  display: grid;
+  /* This creates a fluid grid: cards will be 350px wide, 
+     but will grow to fill space if needed. 
+     'auto-fill' forces them to align to the start (left) 
+     instead of centering themselves. */
+  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+  gap: 20px;
+  justify-items: start; /* Ensures cards align to the left within their grid cell */
+  align-content: start;
+  width: 100%;
+}
+
+/* This trick makes the layout look left-aligned when there are many cards 
+   but keeps them centered if you only have one or two */
+.multi-card-grid::after {
+  content: "";
+  flex: auto; /* Adds a ghost element to prevent the last row from stretching */
+}
+
+/* Ensure the cards themselves don't grow to fill the whole screen */
+.detail-card-wrapper {
+  flex: 0 0 350px; /* Fixed width prevents overlapping/stretching */
+}
+.master-pane {
+  flex: 0 0 320px;
+  /* Removed max-height/overflow-y: auto if you want the whole page to scroll */
+  /* If you want the page to scroll normally, set this to: */
+  height: calc(100vh - 100px); 
+  overflow-y: auto;
+  position: sticky;
+  top: 20px;
+}
+
+/* Base card style */
+.weapon-card {
+  border: 1px solid #333;
+  border-left: 6px solid #444; /* Default Gray */
+  background: #1a1a1a;
+  padding: 15px;
+  border-radius: 4px;
+  transition: border-color 0.3s ease;
+}
+
+/* Collected: Green */
+.weapon-card.status-C {
+  border-left-color: #7cfc00; 
+}
+
+/* Upgraded: Orange */
+.weapon-card.status-U {
+  border-left-color: #ff8c00;
+}
+
+/* Optimal + Upgraded: "Sainted" Red/Gold */
+.weapon-card.status-U.optimal-border {
+  border-left-color: #e62e00;
+  box-shadow: 0 0 10px rgba(230, 46, 0, 0.3);
 }

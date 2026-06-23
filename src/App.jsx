@@ -10,15 +10,28 @@ const getExcelColumnName = (colIndex) => {
   return columnName;
 };
 
-const classMap = { V: "Veteran", Z: "Zealot", P: "Psyker", O: "Ogryn", A: "Arbites", S: "Scum", SK: "Skitarii" };
+const classMap = {
+  V: "Veteran",
+  Z: "Zealot",
+  P: "Psyker",
+  O: "Ogryn",
+  A: "Arbites",
+  H: "Scum",
+  S: "Skitarii",
+};
 
 export default function App() {
   const { isGapiLoaded, isAuthenticated, login } = useGoogleSheets();
-  const [sheetId, setSheetId] = useState(localStorage.getItem("darktide_sheet_id") || "");
+  const [sheetId, setSheetId] = useState(
+    localStorage.getItem("darktide_sheet_id") || "",
+  );
   const [rawRows, setRawRows] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [activeClass, setActiveClass] = useState("V"); 
-  const [viewMode, setViewMode] = useState("optimal"); 
+  const [activeClass, setActiveClass] = useState("V");
+  const [viewMode, setViewMode] = useState("optimal");
+
+  // NEW: Track which weapon is actively being viewed in the Master-Detail layout
+  const [selectedWeaponId, setSelectedWeaponId] = useState(null);
 
   const handleSheetInput = (inputValue) => {
     const sheetIdMatch = inputValue.match(/\/d\/([a-zA-Z0-9-_]+)/);
@@ -32,12 +45,15 @@ export default function App() {
       localStorage.setItem("darktide_sheet_id", sheetId);
       const response = await window.gapi.client.sheets.spreadsheets.values.get({
         spreadsheetId: sheetId,
-        range: "Stats!A:Z", 
+        // FIX 1: Expanded bounds to ZZ to ensure no columns are ever cut off
+        range: "Stats!A:ZZ",
       });
       if (response.result.values) setRawRows(response.result.values);
     } catch (err) {
       console.error(err);
-      alert("Failed to load sheet. Check the ID and ensure you gave permission.");
+      alert(
+        "Failed to load sheet. Check the ID and ensure you gave permission.",
+      );
     } finally {
       setIsLoading(false);
     }
@@ -46,11 +62,17 @@ export default function App() {
   const formattedWeapons = useMemo(() => {
     if (!rawRows || rawRows.length === 0) return [];
     const headers = rawRows[0];
-    const className = classMap[activeClass];
 
-    const collectedIdx = headers.findIndex(h => h.includes(`Collected (${className})`) || h.includes(`Collected (${className}`));
-    const upgradedIdx = headers.findIndex(h => h.includes(`Upgraded (${className})`) || h.includes(`Upgraged (${className}`));
-    const countIdx = headers.findIndex(h => h.includes(`Count (${className})`) || h.includes(`Count(${className}`));
+    // FIX 2: Wrapped `h` in String() so empty columns don't crash the .includes() method
+    const collectedIdx = headers.findIndex((h) =>
+      String(h || "").includes(`Collected_${activeClass}`),
+    );
+    const upgradedIdx = headers.findIndex((h) =>
+      String(h || "").includes(`Upgraded_${activeClass}`),
+    );
+    const countIdx = headers.findIndex((h) =>
+      String(h || "").includes(`Count_${activeClass}`),
+    );
 
     return rawRows.slice(1).map((row, index) => {
       const isCollected = row[collectedIdx] === "TRUE";
@@ -59,14 +81,14 @@ export default function App() {
       if (isUpgraded) status = "U";
       else if (isCollected) status = "C";
 
-      // Parse Optimal and keep the raw string for modifications later
       const optimalString = (row[2] || "").toString().toUpperCase();
-      const isOptimal = optimalString === "TRUE" || optimalString.includes(activeClass);
-      
+      const isOptimal =
+        optimalString === "TRUE" || optimalString.includes(activeClass);
+
       const rawType = (row[4] || "").toString().toUpperCase();
-      let itemType = 'Ranged';
-      if (rawType === 'TRUE' || rawType === 'M') itemType = 'Melee';
-      else if (rawType === 'C' || rawType === 'CURIO') itemType = 'Curio';
+      let itemType = "Ranged";
+      if (rawType === "TRUE" || rawType === "M") itemType = "Melee";
+      else if (rawType === "C" || rawType === "CURIO") itemType = "Curio";
 
       return {
         rowIndex: index + 2,
@@ -76,17 +98,21 @@ export default function App() {
         status,
         count: parseInt(row[countIdx], 10) || 0,
         isOptimal,
-        rawOptimalString: optimalString, // Store this so we can append/remove letters from it!
+        rawOptimalString: optimalString,
         itemType,
-        colCollectedLetter: collectedIdx !== -1 ? getExcelColumnName(collectedIdx) : null,
-        colUpgradedLetter: upgradedIdx !== -1 ? getExcelColumnName(upgradedIdx) : null,
+        colCollectedLetter:
+          collectedIdx !== -1 ? getExcelColumnName(collectedIdx) : null,
+        colUpgradedLetter:
+          upgradedIdx !== -1 ? getExcelColumnName(upgradedIdx) : null,
         colCountLetter: countIdx !== -1 ? getExcelColumnName(countIdx) : null,
       };
     });
   }, [rawRows, activeClass]);
 
   const displayedWeapons = useMemo(() => {
-    return formattedWeapons.filter((weapon) => weapon.availableClasses.includes(activeClass));
+    return formattedWeapons.filter((weapon) =>
+      weapon.availableClasses.includes(activeClass),
+    );
   }, [formattedWeapons, activeClass]);
 
   // --- GOOGLE API UPDATE HANDLERS ---
@@ -96,7 +122,10 @@ export default function App() {
     let nextCollected = "FALSE";
     let nextUpgraded = "FALSE";
     if (weapon.status === "None") nextCollected = "TRUE";
-    else if (weapon.status === "C") { nextCollected = "TRUE"; nextUpgraded = "TRUE"; }
+    else if (weapon.status === "C") {
+      nextCollected = "TRUE";
+      nextUpgraded = "TRUE";
+    }
 
     try {
       await window.gapi.client.sheets.spreadsheets.values.batchUpdate({
@@ -104,13 +133,21 @@ export default function App() {
         resource: {
           valueInputOption: "USER_ENTERED",
           data: [
-            { range: `Stats!${weapon.colCollectedLetter}${weapon.rowIndex}`, values: [[nextCollected]] },
-            { range: `Stats!${weapon.colUpgradedLetter}${weapon.rowIndex}`, values: [[nextUpgraded]] },
+            {
+              range: `Stats!${weapon.colCollectedLetter}${weapon.rowIndex}`,
+              values: [[nextCollected]],
+            },
+            {
+              range: `Stats!${weapon.colUpgradedLetter}${weapon.rowIndex}`,
+              values: [[nextUpgraded]],
+            },
           ],
         },
       });
-      fetchWeapons(); 
-    } catch (err) { console.error("Status update failed:", err); }
+      fetchWeapons();
+    } catch (err) {
+      console.error("Status update failed:", err);
+    }
   };
 
   const updateCountInSheet = async (weapon, value) => {
@@ -125,46 +162,44 @@ export default function App() {
       });
       setRawRows((prev) => {
         const updated = [...prev];
-        const countIdx = prev[0].findIndex(h => h.includes(`Count (${classMap[activeClass]})`) || h.includes(`Count(${classMap[activeClass]})`));
-        if (updated[weapon.rowIndex - 1] && countIdx !== -1) updated[weapon.rowIndex - 1][countIdx] = String(newCount);
+        // FIX 3: Replaced .trim() with safe String().includes() to prevent crash on undefined
+        const countIdx = prev[0].findIndex((h) =>
+          String(h || "").includes(`Count_${activeClass}`),
+        );
+        if (updated[weapon.rowIndex - 1] && countIdx !== -1)
+          updated[weapon.rowIndex - 1][countIdx] = String(newCount);
         return updated;
       });
-    } catch (err) { console.error("Count sync failed:", err); }
+    } catch (err) {
+      console.error("Count sync failed:", err);
+    }
   };
 
-  // --- NEW: Toggle Optimal Status ---
   const toggleOptimalStatus = async (weapon) => {
     let newValue = "";
 
-    // 1. Determine what the new value in the spreadsheet should be
-    if (weapon.itemType === 'Curio') {
+    if (weapon.itemType === "Curio") {
       if (weapon.isOptimal) {
-        // If it's optimal, remove the active class letter from the string
         newValue = weapon.rawOptimalString.replace(activeClass, "");
       } else {
-        // If not, append the active class letter
         newValue = weapon.rawOptimalString + activeClass;
       }
     } else {
-      // For standard weapons, use literal TRUE or FALSE
       newValue = weapon.isOptimal ? "FALSE" : "TRUE";
     }
 
-    // 2. Push update to Google Sheets
     try {
       await window.gapi.client.sheets.spreadsheets.values.update({
         spreadsheetId: sheetId,
-        range: `Stats!C${weapon.rowIndex}`, // Column C is index 2
+        range: `Stats!C${weapon.rowIndex}`,
         valueInputOption: "USER_ENTERED",
         resource: { values: [[newValue]] },
       });
 
-      // 3. Optimistically update local data so it instantly moves in the UI
       setRawRows((prev) => {
         const updated = [...prev];
-        // rowIndex - 1 corresponds to this specific data row in rawRows
         if (updated[weapon.rowIndex - 1]) {
-          updated[weapon.rowIndex - 1][2] = newValue; 
+          updated[weapon.rowIndex - 1][2] = newValue;
         }
         return updated;
       });
@@ -175,19 +210,23 @@ export default function App() {
 
   // --- RENDER HELPERS ---
 
-  const renderWeaponCard = (weapon) => (
-    <div key={weapon.rowIndex} className={`weapon-card status-${weapon.status}`}>
-      {/* Star Toggle Button */}
+  const renderWeaponCard = (weapon) => {
+    const isSainted = weapon.status === 'U' && weapon.isOptimal;
+    return(
+<div 
+      key={weapon.rowIndex} 
+      className={`weapon-card status-${weapon.status} ${isSainted ? 'optimal-border' : ''}`}
+    >
       <button 
         className={`optimal-star ${weapon.isOptimal ? 'filled' : ''}`}
         onClick={() => toggleOptimalStatus(weapon)}
-        title={weapon.isOptimal ? "Unmark as Optimal" : "Mark as Optimal"}
       >
         ★
       </button>
 
       <h3>{weapon.weaponName}</h3>
       <span className="dump-stat">Dump: {weapon.dumpStat}</span>
+      
       <div className="card-controls">
         <button className={`status-btn ${weapon.status}`} onClick={() => handleStatusCycle(weapon)}>
           {weapon.status === "None" && "☐ Unowned"}
@@ -196,76 +235,223 @@ export default function App() {
         </button>
         <div className="count-picker">
           <label>Qty:</label>
-          <input type="number" min="0" value={weapon.count} onChange={(e) => updateCountInSheet(weapon, e.target.value)} />
+          <input
+            type="number"
+            min="0"
+            value={weapon.count}
+            onChange={(e) => updateCountInSheet(weapon, e.target.value)}
+          />
         </div>
       </div>
     </div>
-  );
+    )
+  };
 
   const renderOptimalView = () => {
     const sections = [
-      { title: "~~~ Optimal Melee ~~~", items: displayedWeapons.filter(w => w.isOptimal && w.itemType === 'Melee') },
-      { title: "~~~ Optimal Ranged ~~~", items: displayedWeapons.filter(w => w.isOptimal && w.itemType === 'Ranged') },
-      { title: "~~~ Optimal Curios ~~~", items: displayedWeapons.filter(w => w.isOptimal && w.itemType === 'Curio') },
-      { title: "~~~ Non-Optimal Melee ~~~", items: displayedWeapons.filter(w => !w.isOptimal && w.itemType === 'Melee') },
-      { title: "~~~ Non-Optimal Ranged ~~~", items: displayedWeapons.filter(w => !w.isOptimal && w.itemType === 'Ranged') },
-      { title: "~~~ Non-Optimal Curios ~~~", items: displayedWeapons.filter(w => !w.isOptimal && w.itemType === 'Curio') },
+      {
+        title: "~~~ Optimal Melee ~~~",
+        items: displayedWeapons.filter(
+          (w) => w.isOptimal && w.itemType === "Melee",
+        ),
+      },
+      {
+        title: "~~~ Optimal Ranged ~~~",
+        items: displayedWeapons.filter(
+          (w) => w.isOptimal && w.itemType === "Ranged",
+        ),
+      },
+      {
+        title: "~~~ Optimal Curios ~~~",
+        items: displayedWeapons.filter(
+          (w) => w.isOptimal && w.itemType === "Curio",
+        ),
+      },
+      {
+        title: "~~~ Non-Optimal Melee ~~~",
+        items: displayedWeapons.filter(
+          (w) => !w.isOptimal && w.itemType === "Melee",
+        ),
+      },
+      {
+        title: "~~~ Non-Optimal Ranged ~~~",
+        items: displayedWeapons.filter(
+          (w) => !w.isOptimal && w.itemType === "Ranged",
+        ),
+      },
+      {
+        title: "~~~ Non-Optimal Curios ~~~",
+        items: displayedWeapons.filter(
+          (w) => !w.isOptimal && w.itemType === "Curio",
+        ),
+      },
     ];
 
-    return sections.map(sec => sec.items.length > 0 && (
-      <div key={sec.title} className="optimal-section">
-        <h2 className="section-title">{sec.title}</h2>
-        <div className="weapon-grid">{sec.items.map(renderWeaponCard)}</div>
-      </div>
-    ));
+    return sections.map(
+      (sec) =>
+        sec.items.length > 0 && (
+          <div key={sec.title} className="optimal-section">
+            <h2 className="section-title">{sec.title}</h2>
+            <div className="weapon-grid">{sec.items.map(renderWeaponCard)}</div>
+          </div>
+        ),
+    );
   };
 
   const renderGroupedView = () => {
-    const grouped = displayedWeapons.reduce((acc, weapon) => {
-      if (!acc[weapon.weaponName]) acc[weapon.weaponName] = { type: weapon.itemType, variants: [] };
-      acc[weapon.weaponName].variants.push(weapon);
-      return acc;
-    }, {});
+    const groupedByType = { Melee: {}, Ranged: {}, Curio: {} };
 
-    const typeOrder = { 'Melee': 1, 'Ranged': 2, 'Curio': 3 };
-    const sortedGroupNames = Object.keys(grouped).sort((a, b) => {
-      const typeDiff = typeOrder[grouped[a].type] - typeOrder[grouped[b].type];
-      if (typeDiff !== 0) return typeDiff;
-      return a.localeCompare(b);
+    displayedWeapons.forEach((weapon) => {
+      const type = weapon.itemType;
+      const name = weapon.weaponName;
+
+      if (!groupedByType[type]) groupedByType[type] = {};
+      if (!groupedByType[type][name]) groupedByType[type][name] = [];
+      groupedByType[type][name].push(weapon);
     });
 
+    const typeOrder = ["Melee", "Ranged", "Curio"];
+
+    // Dynamically grab the freshest data for the selected weapon so the UI always updates after a sync
+    const activeWeaponDetail = displayedWeapons.find(
+      (w) => w.rowIndex === selectedWeaponId,
+    );
+
+    const AboutPage = () => (
+  <div className="about-page">
+    <h1>Welcome to the Arsenal Tracker</h1>
+    <p>This tool helps you manage your Darktide weapon collection by syncing with your Google Sheets.</p>
+    <div className="setup-steps">
+      <h2>Getting Started</h2>
+      <ol>
+        <li><strong>Step 1:</strong> <a href="YOUR_TEMPLATE_LINK_HERE" target="_blank" rel="noreferrer">Click here to copy the Google Sheets template</a>.</li>
+        <li><strong>Step 2:</strong> Authenticate with your Google account using the button above.</li>
+        <li><strong>Step 3:</strong> Paste your copied Spreadsheet ID into the search bar.</li>
+      </ol>
+    </div>
+  </div>
+);
+
     return (
-      <div className="grouped-container">
-        {sortedGroupNames.map(name => (
-          <details key={name} className="weapon-accordion">
-            <summary className="accordion-header">
-              <span className="weapon-title">{name}</span>
-              <span className="weapon-type-badge">{grouped[name].type}</span>
-            </summary>
-            <div className="accordion-content weapon-grid">
-              {grouped[name].variants.map(renderWeaponCard)}
+      <div className="master-detail-layout">
+        {/* LEFT PANE: The Scrollable Master List */}
+        <div className="master-pane">
+          {typeOrder.map((type) => {
+            const weaponsInType = groupedByType[type];
+            if (!weaponsInType || Object.keys(weaponsInType).length === 0)
+              return null;
+            const sortedNames = Object.keys(weaponsInType).sort((a, b) =>
+              a.localeCompare(b),
+            );
+
+            return (
+              <div key={type} className="master-section">
+                <h2 className="master-section-title">{type}</h2>
+                <div className="type-accordions">
+                  {sortedNames.map((name) => (
+                    // In your renderGroupedView map:
+                    <details
+                      key={name}
+                      className="weapon-accordion"
+                      onToggle={(e) => {
+                        if (e.target.open) {
+                          // Auto-select the first variant in the list when opened
+                          const firstVariant = weaponsInType[name][0];
+                          setSelectedWeaponId(firstVariant.rowIndex);
+                        }
+                      }}
+                    >
+                      <summary className="accordion-header">
+                        <span className="weapon-title">{name}</span>
+                      </summary>
+                      <div className="accordion-content compact-list">
+                        {/* Render compact clickable rows instead of huge cards */}
+                        {weaponsInType[name].map((weapon) => (
+                          <div
+                            key={weapon.rowIndex}
+                            className={`compact-list-item ${selectedWeaponId === weapon.rowIndex ? "selected" : ""}`}
+                            onClick={() => setSelectedWeaponId(weapon.rowIndex)}
+                          >
+                            <span className="compact-dump">
+                              Dump: {weapon.dumpStat}
+                            </span>
+                            <span
+                              className={`tiny-status badge-${weapon.status}`}
+                            >
+                              {weapon.status === "C"
+                                ? "Collected"
+                                : weapon.status === "U"
+                                  ? "Upgraded"
+                                  : ""}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </details>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* RIGHT PANE: The Detail View */}
+        <div className="detail-pane">
+          {selectedWeaponId ? (
+            <div className="multi-card-grid">
+              {/* Filter for all entries matching the selected weapon's name */}
+              {displayedWeapons
+                .filter(
+                  (w) =>
+                    w.weaponName ===
+                    displayedWeapons.find(
+                      (x) => x.rowIndex === selectedWeaponId,
+                    )?.weaponName,
+                )
+                .map((weapon) => (
+                  <div key={weapon.rowIndex} className="detail-card-wrapper">
+                    {renderWeaponCard(weapon)}
+                  </div>
+                ))}
             </div>
-          </details>
-        ))}
+          ) : (
+            <div className="empty-detail-state">
+              <h3>Select a Weapon</h3>
+              <p>
+                Click a weapon name on the left to display all variants and
+                their respective stats on the right.
+              </p>
+            </div>
+          )}
+        </div>
       </div>
     );
   };
 
-  if (!isGapiLoaded) return <div className="loading">Initializing Application...</div>;
-  if (!isAuthenticated) return (
-    <div className="login-screen">
-      <h1>Darktide Weapons Collector</h1>
-      <button onClick={login}>Authenticate with Google</button>
-    </div>
-  );
+  if (!isGapiLoaded)
+    return <div className="loading">Initializing Application...</div>;
+  if (!isAuthenticated)
+    return (
+      <div className="login-screen">
+        <h1>Darktide Weapons Collector</h1>
+        <button onClick={login}>Authenticate with Google</button>
+      </div>
+    );
 
   return (
     <div className="dashboard">
       <header className="app-header">
-        <h1>Arsenal Tracker</h1>
+        <h1>Armory</h1>
         <div className="connection-bar">
-          <input type="text" placeholder="Paste your Google Sheet Link or ID here" value={sheetId} onChange={(e) => handleSheetInput(e.target.value)} />
-          <button onClick={fetchWeapons} disabled={isLoading}>{isLoading ? "Syncing..." : "Load Data"}</button>
+          <input
+            type="text"
+            placeholder="Paste your Google Sheet Link or ID here"
+            value={sheetId}
+            onChange={(e) => handleSheetInput(e.target.value)}
+          />
+          <button onClick={fetchWeapons} disabled={isLoading}>
+            {isLoading ? "Syncing..." : "Load Data"}
+          </button>
         </div>
       </header>
 
@@ -274,22 +460,45 @@ export default function App() {
           <div className="controls-bar">
             <div className="class-tabs">
               {Object.keys(classMap).map((key) => (
-                <button key={key} className={activeClass === key ? "active" : ""} onClick={() => setActiveClass(key)}>
+                <button
+                  key={key}
+                  className={activeClass === key ? "active" : ""}
+                  onClick={() => setActiveClass(key)}
+                >
                   {classMap[key]}
                 </button>
               ))}
             </div>
             <div className="view-toggles">
-              <button className={viewMode === 'list' ? 'active' : ''} onClick={() => setViewMode('list')}>List</button>
-              <button className={viewMode === 'optimal' ? 'active' : ''} onClick={() => setViewMode('optimal')}>Tracker Layout</button>
-              <button className={viewMode === 'grouped' ? 'active' : ''} onClick={() => setViewMode('grouped')}>Grouped</button>
+              <button
+                className={viewMode === "optimal" ? "active" : ""}
+                onClick={() => setViewMode("optimal")}
+              >
+                Optimal
+              </button>
+              <button
+                className={viewMode === "grouped" ? "active" : ""}
+                onClick={() => setViewMode("grouped")}
+              >
+                By Weapon
+              </button>
+              <button
+                className={viewMode === "list" ? "active" : ""}
+                onClick={() => setViewMode("list")}
+              >
+                Show All
+              </button>
             </div>
           </div>
 
           <div className="view-container">
-            {viewMode === 'list' && <div className="weapon-grid">{displayedWeapons.map(renderWeaponCard)}</div>}
-            {viewMode === 'optimal' && renderOptimalView()}
-            {viewMode === 'grouped' && renderGroupedView()}
+            {viewMode === "list" && (
+              <div className="weapon-grid">
+                {displayedWeapons.map(renderWeaponCard)}
+              </div>
+            )}
+            {viewMode === "optimal" && renderOptimalView()}
+            {viewMode === "grouped" && renderGroupedView()}
           </div>
         </main>
       )}
