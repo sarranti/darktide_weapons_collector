@@ -1,6 +1,45 @@
 import React, { useState, useMemo } from "react";
 import { useGoogleSheets } from "./useGoogleSheets";
 
+// 1. Defined outside to prevent re-creation on every render
+const AboutPage = () => (
+  <div className="about-page">
+    <h1>Welcome to the Arsenal Tracker</h1>
+    <p>
+      This tool helps you manage your Darktide weapon collection by syncing with
+      your Google Sheets.
+    </p>
+    <div className="setup-steps">
+      <h2>Getting Started</h2>
+      <ol>
+        <li>
+          <strong>Step 1:</strong>{" "} If you don't have a template yet, you can create one by making a copy of the default template in your google drive:{" "}
+          <a href="https://docs.google.com/spreadsheets/d/1jwscnYcFndVzskmI3o8rbh9yRjyb5hEU3XJj6B326hU/edit?usp=sharing" target="_blank" rel="noreferrer">
+            Click here to copy the template
+          </a>
+          .
+        </li>
+        <li>
+          <strong>Step 2:</strong> Authenticate using the button above.
+        </li>
+        <li>
+          <strong>Step 3:</strong> Paste your Sheet ID by clicking share and copying the link, then click "Load Data".
+          <ul>
+            <li>Note: the sheet does not need to be shared publicly.This only loads in your browser and is not shared with anyone</li>
+            <li>
+              <strong>Finding your Sheet ID:</strong> The Sheet ID is the long string in the URL of your Google Sheet. For example, in the URL:
+              <br />
+              <code>https://docs.google.com/spreadsheets/d/1jwscnYcFndVzskmI3o8rbh9yRjyb5hEU3XJj6B326hU/edit</code>
+              <br />
+              The Sheet ID is: <code>1jwscnYcFndVzskmI3o8rbh9yRjyb5hEU3XJj6B326hU</code>
+            </li>
+          </ul>
+        </li>
+      </ol>
+    </div>
+  </div>
+);
+
 const getExcelColumnName = (colIndex) => {
   let columnName = "";
   while (colIndex >= 0) {
@@ -28,14 +67,19 @@ export default function App() {
   const [rawRows, setRawRows] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [activeClass, setActiveClass] = useState("V");
-  const [viewMode, setViewMode] = useState("optimal");
-
+  const [viewMode, setViewMode] = useState("about");
   // NEW: Track which weapon is actively being viewed in the Master-Detail layout
   const [selectedWeaponId, setSelectedWeaponId] = useState(null);
 
   const handleSheetInput = (inputValue) => {
+    // Use a slightly more robust regex
+    // 1. Matches the standard /d/ID pattern
+    // 2. Uses a non-capturing group to handle cases where the URL might end with a /
     const sheetIdMatch = inputValue.match(/\/d\/([a-zA-Z0-9-_]+)/);
-    setSheetId(sheetIdMatch ? sheetIdMatch[1] : inputValue);
+
+    // If a match is found, use it; otherwise, trim whitespace from the raw input
+    // in case they pasted just an ID with a stray space.
+    setSheetId(sheetIdMatch ? sheetIdMatch[1] : inputValue.trim());
   };
 
   const fetchWeapons = async () => {
@@ -48,7 +92,10 @@ export default function App() {
         // FIX 1: Expanded bounds to ZZ to ensure no columns are ever cut off
         range: "Stats!A:ZZ",
       });
-      if (response.result.values) setRawRows(response.result.values);
+      if (response.result.values) {
+        setRawRows(response.result.values);
+        setViewMode("grouped");
+      }
     } catch (err) {
       console.error(err);
       alert(
@@ -82,9 +129,9 @@ export default function App() {
       else if (isCollected) status = "C";
 
       const optimalString = (row[2] || "").toString().toUpperCase();
-      const isOptimal =
-        optimalString === "TRUE" || optimalString.includes(activeClass);
-
+      const isOptimal = 
+        optimalString === "TRUE" || 
+        new RegExp(`\\b${activeClass}\\b`).test(optimalString);
       const rawType = (row[4] || "").toString().toUpperCase();
       let itemType = "Ranged";
       if (rawType === "TRUE" || rawType === "M") itemType = "Melee";
@@ -211,40 +258,43 @@ export default function App() {
   // --- RENDER HELPERS ---
 
   const renderWeaponCard = (weapon) => {
-    const isSainted = weapon.status === 'U' && weapon.isOptimal;
-    return(
-<div 
-      key={weapon.rowIndex} 
-      className={`weapon-card status-${weapon.status} ${isSainted ? 'optimal-border' : ''}`}
-    >
-      <button 
-        className={`optimal-star ${weapon.isOptimal ? 'filled' : ''}`}
-        onClick={() => toggleOptimalStatus(weapon)}
+    const isSainted = weapon.status === "U" && weapon.isOptimal;
+    return (
+      <div
+        key={weapon.rowIndex}
+        className={`weapon-card status-${weapon.status} ${isSainted ? "optimal-border" : ""}`}
       >
-        ★
-      </button>
-
-      <h3>{weapon.weaponName}</h3>
-      <span className="dump-stat">Dump: {weapon.dumpStat}</span>
-      
-      <div className="card-controls">
-        <button className={`status-btn ${weapon.status}`} onClick={() => handleStatusCycle(weapon)}>
-          {weapon.status === "None" && "☐ Unowned"}
-          {weapon.status === "C" && "☑ Collected"}
-          {weapon.status === "U" && "🔥 Upgraded"}
+        <button
+          className={`optimal-star ${weapon.isOptimal ? "filled" : ""}`}
+          onClick={() => toggleOptimalStatus(weapon)}
+        >
+          ★
         </button>
-        <div className="count-picker">
-          <label>Qty:</label>
-          <input
-            type="number"
-            min="0"
-            value={weapon.count}
-            onChange={(e) => updateCountInSheet(weapon, e.target.value)}
-          />
+
+        <h3>{weapon.weaponName}</h3>
+        <span className="dump-stat">Dump: {weapon.dumpStat}</span>
+
+        <div className="card-controls">
+          <button
+            className={`status-btn ${weapon.status}`}
+            onClick={() => handleStatusCycle(weapon)}
+          >
+            {weapon.status === "None" && "☐ Unowned"}
+            {weapon.status === "C" && "☑ Collected"}
+            {weapon.status === "U" && "🔥 Upgraded"}
+          </button>
+          <div className="count-picker">
+            <label>Qty:</label>
+            <input
+              type="number"
+              min="0"
+              value={weapon.count}
+              onChange={(e) => updateCountInSheet(weapon, e.target.value)}
+            />
+          </div>
         </div>
       </div>
-    </div>
-    )
+    );
   };
 
   const renderOptimalView = () => {
@@ -317,21 +367,6 @@ export default function App() {
       (w) => w.rowIndex === selectedWeaponId,
     );
 
-    const AboutPage = () => (
-  <div className="about-page">
-    <h1>Welcome to the Arsenal Tracker</h1>
-    <p>This tool helps you manage your Darktide weapon collection by syncing with your Google Sheets.</p>
-    <div className="setup-steps">
-      <h2>Getting Started</h2>
-      <ol>
-        <li><strong>Step 1:</strong> <a href="YOUR_TEMPLATE_LINK_HERE" target="_blank" rel="noreferrer">Click here to copy the Google Sheets template</a>.</li>
-        <li><strong>Step 2:</strong> Authenticate with your Google account using the button above.</li>
-        <li><strong>Step 3:</strong> Paste your copied Spreadsheet ID into the search bar.</li>
-      </ol>
-    </div>
-  </div>
-);
-
     return (
       <div className="master-detail-layout">
         {/* LEFT PANE: The Scrollable Master List */}
@@ -343,7 +378,6 @@ export default function App() {
             const sortedNames = Object.keys(weaponsInType).sort((a, b) =>
               a.localeCompare(b),
             );
-
             return (
               <div key={type} className="master-section">
                 <h2 className="master-section-title">{type}</h2>
@@ -372,9 +406,16 @@ export default function App() {
                             className={`compact-list-item ${selectedWeaponId === weapon.rowIndex ? "selected" : ""}`}
                             onClick={() => setSelectedWeaponId(weapon.rowIndex)}
                           >
-                            <span className="compact-dump">
-                              Dump: {weapon.dumpStat}
+                            {/* Wrap Star and Dump Stat together */}
+                            <span className="compact-left-group">
+                              <span className="optimal-star-icon">
+                                {weapon.isOptimal ? "★" : " "}
+                              </span>
+                              <span className="compact-dump">
+                                Dump: {weapon.dumpStat}
+                              </span>
                             </span>
+
                             <span
                               className={`tiny-status badge-${weapon.status}`}
                             >
@@ -428,35 +469,66 @@ export default function App() {
     );
   };
 
-  if (!isGapiLoaded)
-    return <div className="loading">Initializing Application...</div>;
-  if (!isAuthenticated)
-    return (
-      <div className="login-screen">
-        <h1>Darktide Weapons Collector</h1>
-        <button onClick={login}>Authenticate with Google</button>
-      </div>
-    );
-
   return (
     <div className="dashboard">
       <header className="app-header">
         <h1>Armory</h1>
         <div className="connection-bar">
-          <input
-            type="text"
-            placeholder="Paste your Google Sheet Link or ID here"
-            value={sheetId}
-            onChange={(e) => handleSheetInput(e.target.value)}
-          />
-          <button onClick={fetchWeapons} disabled={isLoading}>
-            {isLoading ? "Syncing..." : "Load Data"}
-          </button>
+          {!isAuthenticated ? (
+            <button onClick={login}>Authenticate with Google</button>
+          ) : (
+            <>
+              <input
+                type="text"
+                placeholder="Sheet ID"
+                value={sheetId}
+                onChange={(e) => handleSheetInput(e.target.value)}
+              />
+              <button onClick={fetchWeapons} disabled={isLoading}>
+                Load Data
+              </button>
+            </>
+          )}
         </div>
       </header>
 
-      {rawRows.length > 0 && (
-        <main>
+      {/* 3. Navigation Header - Always visible */}
+      <nav className="main-nav">
+        <button
+          className={viewMode === "about" ? "active" : ""}
+          onClick={() => setViewMode("about")}
+        >
+          About
+        </button>
+        {isAuthenticated && (
+          <>
+            <button
+              className={viewMode === "grouped" ? "active" : ""}
+              onClick={() => setViewMode("grouped")}
+            >
+              By Weapon
+            </button>
+            <button
+              className={viewMode === "optimal" ? "active" : ""}
+              onClick={() => setViewMode("optimal")}
+            >
+              Optimal
+            </button>
+
+            <button
+              className={viewMode === "list" ? "active" : ""}
+              onClick={() => setViewMode("list")}
+            >
+              Show All
+            </button>
+          </>
+        )}
+      </nav>
+
+      <main>
+        {viewMode === "about" && <AboutPage />}
+
+        {viewMode !== "about" && isAuthenticated && rawRows.length > 0 && (
           <div className="controls-bar">
             <div className="class-tabs">
               {Object.keys(classMap).map((key) => (
@@ -469,28 +541,10 @@ export default function App() {
                 </button>
               ))}
             </div>
-            <div className="view-toggles">
-              <button
-                className={viewMode === "optimal" ? "active" : ""}
-                onClick={() => setViewMode("optimal")}
-              >
-                Optimal
-              </button>
-              <button
-                className={viewMode === "grouped" ? "active" : ""}
-                onClick={() => setViewMode("grouped")}
-              >
-                By Weapon
-              </button>
-              <button
-                className={viewMode === "list" ? "active" : ""}
-                onClick={() => setViewMode("list")}
-              >
-                Show All
-              </button>
-            </div>
           </div>
+        )}
 
+        {viewMode !== "about" && isAuthenticated && rawRows.length > 0 && (
           <div className="view-container">
             {viewMode === "list" && (
               <div className="weapon-grid">
@@ -500,8 +554,8 @@ export default function App() {
             {viewMode === "optimal" && renderOptimalView()}
             {viewMode === "grouped" && renderGroupedView()}
           </div>
-        </main>
-      )}
+        )}
+      </main>
     </div>
   );
 }

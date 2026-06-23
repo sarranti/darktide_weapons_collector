@@ -82,22 +82,23 @@ button:disabled {
   color: black;
 }
 
-.view-toggles {
+.main-nav {
   display: flex;
   gap: 5px;
 }
 
-.view-toggles button {
+.main-nav button {
   background-color: #222;
   color: #888;
   padding: 8px 12px;
   font-size: 0.85rem;
 }
 
-.view-toggles button.active {
-  background-color: var(--card-bg);
-  color: var(--accent);
-  border: 1px solid var(--accent);
+.main-nav button.active {
+  background: #e6b800; /* Or your preferred gold/yellow accent */
+  color: #000;
+  border-color: #e6b800;
+  font-weight: bold;
 }
 .weapon-grid {
   display: grid;
@@ -351,4 +352,16 @@ button:disabled {
 .weapon-card.status-U.optimal-border {
   border-left-color: #e62e00;
   box-shadow: 0 0 10px rgba(230, 46, 0, 0.3);
+}
+
+.compact-left-group {
+  display: flex;
+  align-items: center;
+  gap: 8px; /* Spacing between star and text */
+}
+
+.optimal-star-icon {
+  width: 15px; /* Fixed width prevents the layout jump */
+  display: inline-block;
+  color: var(--accent); /* Optional: make it gold */
 }
