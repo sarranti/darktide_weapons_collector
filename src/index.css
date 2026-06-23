@@ -1,0 +1,153 @@
+:root {
+  --bg-color: #1a1a1a;
+  --card-bg: #2a2a2a;
+  --text: #e0e0e0;
+  --accent: #d4af37; /* A gritty gold color fitting for Warhammer */
+  --accent-hover: #b5952f;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, sans-serif;
+  background-color: var(--bg-color);
+  color: var(--text);
+}
+
+.login-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  text-align: center;
+}
+
+button {
+  background-color: var(--accent);
+  color: #000;
+  border: none;
+  padding: 10px 20px;
+  font-weight: bold;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+button:hover {
+  background-color: var(--accent-hover);
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.app-header {
+  padding: 20px;
+  background-color: #111;
+  border-bottom: 2px solid var(--accent);
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.connection-bar {
+  display: flex;
+  gap: 10px;
+}
+
+.connection-bar input {
+  flex: 1;
+  padding: 10px;
+  border-radius: 4px;
+  border: 1px solid #444;
+  background: #222;
+  color: white;
+}
+
+.class-tabs {
+  display: flex;
+  gap: 10px;
+  padding: 20px;
+  justify-content: center;
+}
+
+.class-tabs button {
+  background-color: #333;
+  color: white;
+}
+
+.class-tabs button.active {
+  background-color: var(--accent);
+  color: black;
+}
+
+.weapon-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 15px;
+  padding: 20px;
+}
+
+.weapon-card {
+  background-color: var(--card-bg);
+  padding: 15px;
+  border-radius: 8px;
+  border: 1px solid #444;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.weapon-card.collected {
+  border-color: var(--accent);
+  background-color: rgba(212, 175, 55, 0.1);
+}
+
+.weapon-card h3 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.dump-stat {
+  font-size: 0.85rem;
+  color: #aaa;
+}
+
+.checkbox-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  margin-top: auto;
+}
+
+/* --- Optimal Star Toggle --- */
+.weapon-card {
+  position: relative; /* Required so the absolute star anchors to the card */
+  padding-top: 25px;  /* Give a little extra room at the top so the star doesn't cover text */
+}
+
+.optimal-star {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  color: #444; /* Dimly colored when unselected */
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.optimal-star.filled {
+  color: var(--accent); /* Turn gold when optimal */
+  text-shadow: 0 0 8px rgba(212, 175, 55, 0.4);
+}
+
+.optimal-star:hover {
+  transform: scale(1.2);
+}
