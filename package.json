@@ -1,5 +1,6 @@
 {
   "name": "darktide-weapons-collector",
+  "homepage": "[http://sarranti.github.io/darktide-weapons-collector](http://sarranti.github.io/darktide-weapons-collector)",
   "private": true,
   "version": "1.0.0",
   "type": "module",
@@ -16,7 +17,7 @@
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.2.1",
-    "gh-pages": "^6.1.1",
+    "gh-pages": "^6.3.0",
     "vite": "^5.1.4"
   }
 }
