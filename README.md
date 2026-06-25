@@ -1,3 +1,11 @@
+# GH Pages deployed here:
+[Darktide Weapon Collector](https://sarranti.github.io/darktide_weapons_collector/)
+
+# To deploy to GH Pages:
+```bash
+npm run deploy
+```
+
 # React + Vite
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
