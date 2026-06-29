@@ -74,7 +74,7 @@ const classMap = {
 };
 
 export default function App() {
-  const { isGapiLoaded, isAuthenticated, login } = useGoogleSheets();
+  const { isGapiLoaded, isAuthenticated, login, tokenExpiry, silentRefresh } = useGoogleSheets();
   const [sheetId, setSheetId] = useState(
     localStorage.getItem("darktide_sheet_id") || "",
   );
@@ -96,14 +96,30 @@ export default function App() {
     setSheetId(sheetIdMatch ? sheetIdMatch[1] : inputValue.trim());
   };
 
-  const fetchWeapons = async () => {
+const ensureAuth = async () => {
+    if (!tokenExpiry || Date.now() > tokenExpiry) {
+      try {
+        console.log("Token expired. Refreshing silently...");
+        await silentRefresh();
+      } catch (err) {
+        console.error("Silent refresh failed", err);
+        alert("Session expired. Please click 'Authenticate' to log in again.");
+        throw new Error("Auth required"); // Halts the execution of the parent function
+      }
+    }
+  };
+
+const fetchWeapons = async () => {
     if (!sheetId) return alert("Please enter your Spreadsheet ID");
+    
+    // 1. Guard check (halts execution if silent refresh fails)
+    await ensureAuth(); 
+    
     setIsLoading(true);
     try {
       localStorage.setItem("darktide_sheet_id", sheetId);
       const response = await window.gapi.client.sheets.spreadsheets.values.get({
         spreadsheetId: sheetId,
-        // FIX 1: Expanded bounds to ZZ to ensure no columns are ever cut off
         range: "Stats!A:ZZ",
       });
       if (response.result.values) {
@@ -111,9 +127,7 @@ export default function App() {
       }
     } catch (err) {
       console.error(err);
-      alert(
-        "Failed to load sheet. Check the ID and ensure you gave permission.",
-      );
+      alert("Failed to load sheet.");
     } finally {
       setIsLoading(false);
     }
@@ -179,6 +193,9 @@ export default function App() {
 
   const handleStatusCycle = async (weapon) => {
     if (!weapon.colCollectedLetter || !weapon.colUpgradedLetter) return;
+
+    await ensureAuth();
+
     let nextCollected = "FALSE";
     let nextUpgraded = "FALSE";
     if (weapon.status === "None") nextCollected = "TRUE";
@@ -212,6 +229,9 @@ export default function App() {
 
   const updateCountInSheet = async (weapon, value) => {
     if (!weapon.colCountLetter) return;
+
+    await ensureAuth();
+
     const newCount = parseInt(value, 10) || 0;
     try {
       await window.gapi.client.sheets.spreadsheets.values.update({
@@ -237,6 +257,8 @@ export default function App() {
 
   const toggleOptimalStatus = async (weapon) => {
     let newValue = "";
+
+    await ensureAuth();
 
     if (weapon.itemType === "Curio") {
       if (weapon.isOptimal) {
